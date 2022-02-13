@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-
+const { PORT } = process.env;
 const path = require("path");
 const Jimp = require("jimp");
 const fs = require("fs/promises");
@@ -44,6 +44,7 @@ router.patch(
   upload.single("avatar"),
   async (req, res, next) => {
     const avatarsDir = path.join(__dirname, "../../", "public", "avatars");
+    console.log(__dirname);
     const { path: tempUpload, filename } = req.file;
     const { _id } = req.user;
     try {
@@ -58,7 +59,11 @@ router.patch(
         if (err) throw err;
       });
 
-      const avatarURL = path.join("avatars", newFileName);
+      const avatarURL = path.join(
+        `http://localhost:${PORT}`,
+        "avatars",
+        newFileName
+      );
       await User.findByIdAndUpdate(_id, { avatarURL });
       res.json({ avatarURL });
     } catch (error) {

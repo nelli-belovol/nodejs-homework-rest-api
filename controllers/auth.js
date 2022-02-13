@@ -24,7 +24,7 @@ module.exports = {
       const salt = await bcrypt.genSalt(10);
       const hashPassword = await bcrypt.hash(password, salt);
 
-      const avatarURL = gravatar.url(email);
+      const avatarURL = gravatar.url(email, { protocol: "https" });
       const result = await User.create({
         email,
         avatarURL,
