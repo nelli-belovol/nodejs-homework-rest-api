@@ -4,11 +4,14 @@ const { PORT } = process.env;
 const path = require("path");
 const Jimp = require("jimp");
 const fs = require("fs/promises");
+const CreateError = require("http-errors");
 const { authenticate, upload } = require("../../middlewares");
 
-const { User } = require("../../models/user");
+const { User, schemas } = require("../../models/user");
 
 const { signup, login } = require("../../controllers/auth");
+
+const { sendMail } = require("../../helpers/sendMail");
 
 router.post("/signup", signup);
 
@@ -44,7 +47,7 @@ router.patch(
   upload.single("avatar"),
   async (req, res, next) => {
     const avatarsDir = path.join(__dirname, "../../", "public", "avatars");
-    console.log(__dirname);
+
     const { path: tempUpload, filename } = req.file;
     const { _id } = req.user;
     try {
@@ -71,5 +74,49 @@ router.patch(
     }
   }
 );
+
+router.get("/verify/:verificationToken", async (req, res, next) => {
+  try {
+    const { verificationToken } = req.params;
+
+    const user = await User.findOne({ verificationToken });
+    if (!user) {
+      throw new CreateError(404, "User not found");
+    }
+    const { _id } = user;
+    await User.findByIdAndUpdate(_id, {
+      verificationToken: null,
+      verify: true,
+    });
+    res.status(200).json({ message: "Verification successful" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/verify", async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const { error } = schemas.verify.validate(email);
+    if (error) {
+      throw new CreateError(400, "missing required field email");
+    }
+
+    const user = await User.findOnee(email);
+    if (user.verify) {
+      throw new CreateError(400, "Verification has already been passed");
+    }
+    const mail = {
+      to: email,
+      subject: "Повторное подтверждение имеил",
+      html: `<a target="_black" href='http://localhost:4000/api/users/${user.verificationToken}'>Нажмите, чтобы подтвердить имеил`,
+    };
+    await sendMail(mail);
+    sendMail.send();
+    res.json({ message: "Verification email sent" });
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;

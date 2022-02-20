@@ -2,10 +2,10 @@ const CreateError = require("http-errors");
 const gravatar = require("gravatar");
 const { User, schemas } = require("../models/user");
 const bcrypt = require("bcryptjs");
-
+const { v4 } = require("uuid");
 const jwt = require("jsonwebtoken");
 const { SECRET_KEY } = process.env;
-
+const sendMail = require("../helpers/sendMail");
 module.exports = {
   signup: async (req, res, next) => {
     try {
@@ -25,13 +25,22 @@ module.exports = {
       const hashPassword = await bcrypt.hash(password, salt);
 
       const avatarURL = gravatar.url(email, { protocol: "https" });
+      const verificationToken = v4();
+
       const result = await User.create({
         email,
         avatarURL,
         password: hashPassword,
+        verificationToken,
       });
+      const mail = {
+        to: email,
+        subject: "Подтверждение имеил",
+        html: `<a target="_black" href='http://localhost:4000/api/users/${verificationToken}'>Нажмите, чтобы подтвердить имеил`,
+      };
+      await sendMail(mail);
       const { subscription } = result;
-      res.status(200).json({ user: { email, subscription } });
+      res.status(201).json({ user: { email, subscription } });
     } catch (error) {
       next(error);
     }
@@ -49,7 +58,9 @@ module.exports = {
       if (!user) {
         throw new CreateError(401, "Email or password is wrong");
       }
-
+      if (!user.verify) {
+        throw new CreateError(401, "Email not verify");
+      }
       const compareResult = await bcrypt.compare(password, user.password);
       if (!compareResult) {
         throw new CreateError(401, "Email or password is wrong");
